@@ -27,7 +27,7 @@ services:
       - 'LOCALHOST_BYPASS=${LOCALHOST_BYPASS:-false}'
       - 'ODYSSEUS_ADMIN_USER=${ODYSSEUS_ADMIN_USER:-admin}'
       - 'ODYSSEUS_ADMIN_PASSWORD=${ODYSSEUS_ADMIN_PASSWORD:-}'
-      - 'ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-http://localhost,http://127.0.0.1}'
+      - 'ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-http://localhost,http://127.0.0.1,https://odys.slks.cz}'
       - 'SECURE_COOKIES=${SECURE_COOKIES:-false}'
       - 'EMBEDDING_URL=${EMBEDDING_URL:-}'
       - 'EMBEDDING_MODEL=${EMBEDDING_MODEL:-}'
@@ -48,9 +48,15 @@ services:
       - 'PGID=${PGID:-1000}'
     depends_on:
       searxng:
-        condition: service_started  # ZMĚNĚNO: Odysseus nastartuje hned, jak SearXNG naběhne
+        condition: service_started
       chromadb:
         condition: service_started
+    healthcheck:
+      test: ["CMD", "true"]
+      interval: 5s
+      timeout: 2s
+      retries: 3
+      start_period: 5s
     restart: unless-stopped
 
   chromadb:
@@ -68,7 +74,7 @@ services:
     entrypoint:
       - /bin/sh
       - '-c'
-      - "set -eu\nif [ ! -s /etc/searxng/settings.yml ] || grep -q 'odysseus-local-searxng-json-2026-05-30\\|__SEARXNG_SECRET__' /etc/searxng/settings.yml; then\n  secret=\"$${SEARXNG_SECRET:-}\"\n  if [ -z \"$$secret\" ]; then\n    secret=\"$$(python -c 'import secrets; print(secrets.token_urlsafe(48))')\"\n  fi\n  sed \"s|__SEARXNG_SECRET__|$$secret|g\" /tmp/searxng-settings.yml.template > /etc/searxng/settings.yml\nfi\nexec /usr/local/searxng/entrypoint.sh\n"
+      - "set -eu\nif [ ! -s /etc/searxng/settings.yml ] || grep -q 'odysseus-local-searxng-json-2026-05-30\\|__SEARXNG_SECRET__' /etc/searxng/settings.yml; then\n  secret=\"$${SEARXNG_SECRET:-}\"\n  if [ -z \"$$secret\" ]; then\n    secret=\"$$(python -c 'import secrets; print(secrets.token_urlsafe(48))')\"\n  fi\n  sed \"s|__SEARXNG_SECRET__|$$secret|g\" /tmp/searxng-settings.yml.template > /etc/searxng/settings.yml\nfi\nsed -i 's/search:/search:\\n  default_doi_resolver: \"https:\\/\\/doi.org\"/g' /etc/searxng/settings.yml\nexec /usr/local/searxng/entrypoint.sh\n"
     volumes:
       - 'searxng-data:/etc/searxng'
       - './config/searxng/settings.yml:/tmp/searxng-settings.yml.template:ro,z'
@@ -85,7 +91,7 @@ services:
     healthcheck:
       test:
         - CMD-SHELL
-        - 'python -c "import urllib.request; urllib.request.urlopen(''http://127.0.0.1:8080/'', timeout=5).read(1)"' # ZMĚNĚNO: localhost -> 127.0.0.1
+        - 'python -c "import urllib.request; urllib.request.urlopen(''http://127.0.0.1:8080/'', timeout=5).read(1)"'
       interval: 5s
       timeout: 6s
       retries: 20
